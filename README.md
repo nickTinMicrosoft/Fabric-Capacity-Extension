@@ -18,6 +18,8 @@ A Microsoft Edge browser extension that provides a GUI interface for managing Mi
 
 ## Installation
 
+> **Deploying to a different Azure AD tenant?** See [TENANT_SETUP.md](TENANT_SETUP.md) for full App Registration and configuration instructions.
+
 ### 1. Prepare the Extension
 
 1. Download or clone this repository to your local machine

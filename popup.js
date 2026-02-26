@@ -8,9 +8,9 @@ class FabricCapacityManager {
         this.accessToken = null;
         // Separate resource access tokens map (management, graph, etc.)
         this.resourceTokens = {};
-    this.capacities = [];
-    this.debugMode = false;
-    this.autoRefreshOnOpen = false; // persisted user preference
+        this.capacities = [];
+        this.debugMode = false;
+        this.autoRefreshOnOpen = false; // persisted user preference
         this.logArea = null;
         this.capacityList = null;
         this.selectedCapacityIndex = null;
@@ -31,6 +31,12 @@ class FabricCapacityManager {
         this.graphUrl = 'https://graph.microsoft.com';
         this.subscriptionApiVersion = '2022-12-01';
         this.fabricApiVersion = '2023-11-01';
+
+        // ── Azure AD App Registration ──────────────────────────────────────
+        // To configure this extension for a different tenant, update these
+        // two values. See TENANT_SETUP.md for full instructions.
+        this.clientId = 'b2f9922d-47b3-45de-be16-72911e143fa4';
+        this.tenantId = 'common'; // Use your Azure AD tenant GUID for single-tenant, or 'common' for multi-tenant
         
         // Resource-specific scope strings. Azure AD v2 does NOT allow combining scopes from different resources
         // in a single authorize request. We start with management, later request Graph token using refresh token.
@@ -77,9 +83,9 @@ class FabricCapacityManager {
         this.capacityList = document.getElementById('capacityList');
         this.startButton = document.getElementById('startButton');
         this.stopButton = document.getElementById('stopButton');
-    this.loadingIndicator = document.getElementById('loadingIndicator');
-    this.debugToggle = document.getElementById('debugToggle');
-    this.autoRefreshToggle = document.getElementById('autoRefreshToggle');
+        this.loadingIndicator = document.getElementById('loadingIndicator');
+        this.debugToggle = document.getElementById('debugToggle');
+        this.autoRefreshToggle = document.getElementById('autoRefreshToggle');
         this.refreshButton = document.getElementById('refreshButton');
         this.tenantInfo = document.getElementById('tenantInfo');
         this.skuContainer = document.getElementById('skuContainer');
@@ -273,8 +279,8 @@ class FabricCapacityManager {
      */
     async performPkceAuthFlow(codeChallenge, scopeString) {
         return new Promise((resolve, reject) => {
-            const tenantId = 'common'; // Multi-tenant; replace with specific tenant if desired
-            const clientId = 'b2f9922d-47b3-45de-be16-72911e143fa4';
+            const tenantId = this.tenantId;
+            const clientId = this.clientId;
             const redirectUri = chrome.identity.getRedirectURL();
             const scope = encodeURIComponent(scopeString);
             const state = this.generateState();
@@ -328,8 +334,8 @@ class FabricCapacityManager {
      * Exchange authorization code for tokens (access + refresh)
      */
     async exchangeAuthCodeForTokens(code, codeVerifier, scopeString) {
-        const tenantId = 'common';
-        const clientId = 'b2f9922d-47b3-45de-be16-72911e143fa4';
+        const tenantId = this.tenantId;
+        const clientId = this.clientId;
         const redirectUri = chrome.identity.getRedirectURL();
         const body = new URLSearchParams({
             client_id: clientId,
@@ -363,8 +369,8 @@ class FabricCapacityManager {
             if (this._refreshingPromise) {
                 return await this._refreshingPromise;
             }
-            const tenantId = 'common';
-            const clientId = 'b2f9922d-47b3-45de-be16-72911e143fa4';
+            const tenantId = this.tenantId;
+            const clientId = this.clientId;
             const body = new URLSearchParams({
                 client_id: clientId,
                 grant_type: 'refresh_token',
@@ -537,8 +543,8 @@ class FabricCapacityManager {
     async attemptOAuth2WithScope(scopeString) {
         return new Promise((resolve, reject) => {
             // Azure AD OAuth2 endpoints
-            const tenantId = 'common'; // Use 'common' for multi-tenant apps
-            const clientId = 'b2f9922d-47b3-45de-be16-72911e143fa4';
+            const tenantId = this.tenantId;
+            const clientId = this.clientId;
             const redirectUri = chrome.identity.getRedirectURL();
             const scope = encodeURIComponent(scopeString);
             const responseType = 'token';
@@ -904,8 +910,8 @@ class FabricCapacityManager {
     async attemptSilentAuthWithScope(scopeString) {
         return new Promise((resolve, reject) => {
             // Azure AD OAuth2 endpoints for silent auth
-            const tenantId = 'common';
-            const clientId = 'b2f9922d-47b3-45de-be16-72911e143fa4';
+            const tenantId = this.tenantId;
+            const clientId = this.clientId;
             const redirectUri = chrome.identity.getRedirectURL();
             const scope = encodeURIComponent(scopeString);
             const responseType = 'token';
