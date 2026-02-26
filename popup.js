@@ -67,6 +67,10 @@ class FabricCapacityManager {
                 return;
             }
 
+            // Load persisted settings (clientId, tenantId, debug, etc.) BEFORE
+            // any auth or refresh can run, to avoid using stale defaults.
+            await this.loadPersistedSettings();
+
             this.setupEventListeners();
             this.log('Extension initialized');
             this.log('Click the refresh button to load capacities');
@@ -135,32 +139,37 @@ class FabricCapacityManager {
             }
         }
 
-        // Load persisted preferences and settings
-        chrome.storage.local.get(['debugMode', 'autoRefreshOnOpen', 'clientId', 'tenantId'], (result) => {
-            this.debugMode = result.debugMode || false;
-            this.debugToggle.checked = this.debugMode;
-            this.autoRefreshOnOpen = !!result.autoRefreshOnOpen;
-            if (this.autoRefreshToggle) {
-                this.autoRefreshToggle.checked = this.autoRefreshOnOpen;
-            }
-            // Load persisted client ID (falls back to built-in default)
-            if (result.clientId) {
-                this.clientId = result.clientId;
-            }
-            this.clientIdInput.value = this.clientId;
-            // Restore tenant ID from last session
-            if (result.tenantId) {
-                this.tenantId = result.tenantId;
-                this.debugLog(`Restored tenant ID from storage: ${this.tenantId}`);
-            }
-            // If preference loaded late and init already ran, trigger auto-refresh now
-            if (this.autoRefreshOnOpen) {
-                this.debugLog('Auto-refresh preference loaded; triggering initial refresh');
-                setTimeout(() => this.refreshCapacities(), 300);
-            }
-        });
-
         return true;
+    }
+
+    /**
+     * Load persisted preferences and settings from chrome.storage.local.
+     * Returns a promise that resolves once all settings are applied.
+     * Must complete before any authentication attempt to ensure clientId
+     * and tenantId are correctly set (avoids using stale defaults).
+     */
+    loadPersistedSettings() {
+        return new Promise(resolve => {
+            chrome.storage.local.get(['debugMode', 'autoRefreshOnOpen', 'clientId', 'tenantId'], (result) => {
+                this.debugMode = result.debugMode || false;
+                this.debugToggle.checked = this.debugMode;
+                this.autoRefreshOnOpen = !!result.autoRefreshOnOpen;
+                if (this.autoRefreshToggle) {
+                    this.autoRefreshToggle.checked = this.autoRefreshOnOpen;
+                }
+                // Load persisted client ID (falls back to built-in default)
+                if (result.clientId) {
+                    this.clientId = result.clientId;
+                }
+                this.clientIdInput.value = this.clientId;
+                // Restore tenant ID from last session
+                if (result.tenantId) {
+                    this.tenantId = result.tenantId;
+                    this.debugLog(`Restored tenant ID from storage: ${this.tenantId}`);
+                }
+                resolve();
+            });
+        });
     }
 
     /**
