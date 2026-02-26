@@ -110,6 +110,34 @@ You no longer need to edit source code. The extension provides a built-in **Sett
 
 4. Click **Configure**, then **Save**.
 
+### Adding Redirect URIs for Additional Developers / Machines
+
+When the extension is **side-loaded** (Load unpacked), Edge computes the Extension ID from the absolute file path of the extension folder. This means every developer machine, user profile, or folder location produces a **different Extension ID** — and therefore a different redirect URI.
+
+If Azure AD returns an error like **AADSTS50011** ("The redirect URI does not match"), the developer's extension ID is not registered.
+
+To fix this, **add each developer's redirect URI** to the same App Registration:
+
+1. Go to **Authentication** → under the existing **Single-page application** platform.
+2. Click **+ Add URI**.
+3. Add the new developer's redirect URI:
+   ```
+   https://<other-extension-id>.chromiumapp.org/
+   ```
+4. Click **Save**.
+
+Azure AD allows **up to 256 redirect URIs** per app registration, so you can add as many developer environments as needed. For example:
+
+```
+https://abcdefghijklmnopqrstuvwxyz012345.chromiumapp.org/
+https://jcgbgeekdjfpihjibpmjelbajgklhkbi.chromiumapp.org/
+https://mnopqrstuvwxyz0123456789abcdefgh.chromiumapp.org/
+```
+
+> **Tip:** To find the redirect URI the extension is using, enable **Debug Logging** (checkbox at the bottom of the popup) and click the refresh button. The exact redirect URI is logged in the output.
+
+> **Note:** If you **publish** the extension to the Edge Add-ons store, the Extension ID becomes stable across all installations and you only need **one** redirect URI.
+
 ---
 
 ## Step 7 — Verify
