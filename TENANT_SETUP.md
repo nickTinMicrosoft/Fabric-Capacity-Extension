@@ -27,10 +27,10 @@ This guide walks an IT administrator through everything needed to deploy the Fab
    - **Name:** `Fabric Capacity Manager` (or any name you prefer)
    - **Supported account types:** choose one of the following:
 
-     | Option | When to use | `tenantId` value in code |
-     |--------|-------------|--------------------------|
-     | **Accounts in this organizational directory only** *(Single tenant)* | Recommended for most organisations. Restricts sign-in to users in your tenant only. | Your tenant GUID (e.g. `a1b2c3d4-…`) |
-     | **Accounts in any organizational directory** *(Multi-tenant)* | Use when users from multiple Azure AD tenants need access. | `common` |
+     | Option | When to use | App Registration scope |
+     |--------|-------------|------------------------|
+     | **Accounts in this organizational directory only** *(Single tenant)* | Recommended for most organisations. Restricts sign-in to users in your tenant only. | Use your tenant GUID when registering the app in Azure AD. The extension will automatically detect the tenant from the signed-in user's token. |
+     | **Accounts in any organizational directory** *(Multi-tenant)* | Use when users from multiple Azure AD tenants need access. | Select this option in the Azure AD app registration. The extension uses `common` as the initial authority and switches to the actual tenant after login. |
 
    - **Redirect URI:** leave blank for now (configured in Step 6).
 4. Click **Register**.
@@ -64,24 +64,19 @@ The extension uses the **PKCE authorization-code flow** (no client secret), whic
 
 ---
 
-## Step 4 — Update the Extension Configuration
+## Step 4 — Configure the Extension Client ID at Runtime
 
-Open `popup.js` and locate the two configuration properties near the top of the file (inside the `constructor`):
+You no longer need to edit source code. The extension provides a built-in **Settings panel** for entering the Client ID at runtime.
 
-```javascript
-// ── Azure AD App Registration ──────────────────────────────────────
-// To configure this extension for a different tenant, update these
-// two values. See TENANT_SETUP.md for full instructions.
-this.clientId = 'b2f9922d-47b3-45de-be16-72911e143fa4';
-this.tenantId = 'common'; // Use your Azure AD tenant GUID for single-tenant, or 'common' for multi-tenant
-```
+1. Load the extension in Edge (see Step 5).
+2. Click the extension icon in the toolbar to open the popup.
+3. Click the **⚙ (Settings)** button next to the refresh button in the header.
+4. Paste the **Application (client) ID** you copied in Step 1 into the **App Registration Client ID** field.
+5. Click **Save**. The extension will log out and apply the new Client ID on the next login.
 
-- Replace the `clientId` value with the **Application (client) ID** you copied in Step 1.
-- Replace the `tenantId` value:
-  - **Single-tenant:** paste your Azure AD **Tenant (directory) ID** (a GUID like `a1b2c3d4-e5f6-…`). You can find it on the App Registration Overview page or under **Microsoft Entra ID → Overview**.
-  - **Multi-tenant:** leave as `'common'`.
+> **Note:** The tenant ID is automatically detected from the signed-in user's token — you do not need to configure it manually. The extension uses `common` as the authority for the initial login, then switches to the user's actual tenant ID for subsequent token operations.
 
-Save the file.
+> **Tip:** The Client ID is stored in the extension's local storage, so it persists across popup sessions and browser restarts.
 
 ---
 

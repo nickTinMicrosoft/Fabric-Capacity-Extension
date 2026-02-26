@@ -33,10 +33,19 @@ class FabricCapacityManager {
         this.fabricApiVersion = '2023-11-01';
 
         // ── Azure AD App Registration ──────────────────────────────────────
-        // To configure this extension for a different tenant, update these
-        // two values. See TENANT_SETUP.md for full instructions.
-        this.clientId = 'b2f9922d-47b3-45de-be16-72911e143fa4';
-        this.tenantId = 'common'; // Use your Azure AD tenant GUID for single-tenant, or 'common' for multi-tenant
+        // The default clientId below is used as a fallback. Users can override
+        // this at runtime via the Settings panel in the extension popup.
+        // The tenantId starts as 'common' and is updated to the logged-in
+        // user's actual tenant ID after the first successful authentication.
+        this.defaultClientId = 'b2f9922d-47b3-45de-be16-72911e143fa4';
+        this.clientId = this.defaultClientId;
+        this.tenantId = 'common'; // Updated to user's actual tenant ID after first login
+
+        // Settings UI elements
+        this.settingsToggleButton = null;
+        this.settingsPanel = null;
+        this.clientIdInput = null;
+        this.saveSettingsButton = null;
         
         // Resource-specific scope strings. Azure AD v2 does NOT allow combining scopes from different resources
         // in a single authorize request. We start with management, later request Graph token using refresh token.
@@ -92,8 +101,12 @@ class FabricCapacityManager {
         this.skuSelect = document.getElementById('skuSelect');
         this.updateSkuButton = document.getElementById('updateSkuButton');
         this.logoutButton = document.getElementById('logoutButton');
+        this.settingsToggleButton = document.getElementById('settingsToggleButton');
+        this.settingsPanel = document.getElementById('settingsPanel');
+        this.clientIdInput = document.getElementById('clientIdInput');
+        this.saveSettingsButton = document.getElementById('saveSettingsButton');
 
-        // Verify all elements were found
+        // Verify all required elements were found
         const elements = {
             logArea: this.logArea,
             capacityList: this.capacityList,
@@ -107,7 +120,11 @@ class FabricCapacityManager {
             skuContainer: this.skuContainer,
             skuSelect: this.skuSelect,
             updateSkuButton: this.updateSkuButton,
-            logoutButton: this.logoutButton
+            logoutButton: this.logoutButton,
+            settingsToggleButton: this.settingsToggleButton,
+            settingsPanel: this.settingsPanel,
+            clientIdInput: this.clientIdInput,
+            saveSettingsButton: this.saveSettingsButton
         };
 
         for (const [name, element] of Object.entries(elements)) {
@@ -118,13 +135,23 @@ class FabricCapacityManager {
             }
         }
 
-        // Load persisted preferences
-        chrome.storage.local.get(['debugMode', 'autoRefreshOnOpen'], (result) => {
+        // Load persisted preferences and settings
+        chrome.storage.local.get(['debugMode', 'autoRefreshOnOpen', 'clientId', 'tenantId'], (result) => {
             this.debugMode = result.debugMode || false;
             this.debugToggle.checked = this.debugMode;
             this.autoRefreshOnOpen = !!result.autoRefreshOnOpen;
             if (this.autoRefreshToggle) {
                 this.autoRefreshToggle.checked = this.autoRefreshOnOpen;
+            }
+            // Load persisted client ID (falls back to built-in default)
+            if (result.clientId) {
+                this.clientId = result.clientId;
+            }
+            this.clientIdInput.value = this.clientId;
+            // Restore tenant ID from last session
+            if (result.tenantId) {
+                this.tenantId = result.tenantId;
+                this.debugLog(`Restored tenant ID from storage: ${this.tenantId}`);
             }
             // If preference loaded late and init already ran, trigger auto-refresh now
             if (this.autoRefreshOnOpen) {
@@ -181,11 +208,35 @@ class FabricCapacityManager {
                 await this.handleLogout();
             });
 
+            // Settings panel toggle
+            this.settingsToggleButton.addEventListener('click', () => {
+                const visible = this.settingsPanel.classList.toggle('visible');
+                if (visible) {
+                    this.clientIdInput.value = this.clientId;
+                }
+            });
+
+            // Save settings button
+            this.saveSettingsButton.addEventListener('click', async () => {
+                await this.saveSettings();
+            });
+
+            // Allow saving settings with Enter key in the client ID field
+            this.clientIdInput.addEventListener('keydown', async (e) => {
+                if (e.key === 'Enter') {
+                    await this.saveSettings();
+                }
+            });
+
             // Add double-click on title to clear authentication (for testing/troubleshooting)
             document.querySelector('h2').addEventListener('dblclick', async () => {
                 if (confirm('Clear cached authentication? This will require re-login.')) {
+                    await this.clearTokenBundle();
                     await this.clearCachedAuth();
                     this.accessToken = null;
+                    this.resourceTokens = {};
+                    this.tenantId = 'common';
+                    chrome.storage.local.remove('tenantId');
                     this.log('Authentication cache cleared');
                     this.capacities = [];
                     this.initialLoadComplete = false;
@@ -213,6 +264,7 @@ class FabricCapacityManager {
                 if (mgmt && Date.now() < mgmt.expiresAt - (2 * 60 * 1000)) {
                     this.accessToken = mgmt.accessToken;
                     this.resourceTokens.management = mgmt;
+                    this.applyTenantIdFromToken(mgmt.accessToken);
                     this.updateTenantAndUserDisplay(mgmt.accessToken);
                     this.log('Using cached management access token');
                     return this.accessToken;
@@ -223,6 +275,7 @@ class FabricCapacityManager {
                         const mgmtToken = refreshedBundle.resourceTokens.management;
                         this.accessToken = mgmtToken.accessToken;
                         this.resourceTokens.management = mgmtToken;
+                        this.applyTenantIdFromToken(mgmtToken.accessToken);
                         this.updateTenantAndUserDisplay(mgmtToken.accessToken);
                         this.log('Management access token refreshed silently');
                         return this.accessToken;
@@ -245,6 +298,7 @@ class FabricCapacityManager {
             });
             this.accessToken = mgmtToken.accessToken;
             this.resourceTokens.management = mgmtToken;
+            this.applyTenantIdFromToken(mgmtToken.accessToken);
             this.updateTenantAndUserDisplay(mgmtToken.accessToken);
             this.log('Authentication successful (management scope)');
             if (!tokens.refresh_token) {
@@ -823,11 +877,17 @@ class FabricCapacityManager {
         try {
             this.log('Logging out...');
             
-            // Clear all authentication data (both new token bundle and legacy cache)
+            // Clear all authentication data.
+            // clearTokenBundle removes the PKCE token bundle (current storage format).
+            // clearCachedAuth removes legacy keys (accessToken/tokenExpiry/sessionInfo) kept for backward compat.
+            // Both are independent chrome.storage.local removes; order does not matter.
             await this.clearTokenBundle();
             await this.clearCachedAuth();
             this.accessToken = null;
             this.resourceTokens = {};
+            // Reset tenant ID to 'common' so next login works for any tenant
+            this.tenantId = 'common';
+            chrome.storage.local.remove('tenantId');
             
             // Clear capacities and reset UI
             this.capacities = [];
@@ -853,6 +913,33 @@ class FabricCapacityManager {
         } catch (error) {
             this.logError('Failed to logout', error);
         }
+    }
+
+    /**
+     * Save extension settings (client ID) and apply them
+     */
+    async saveSettings() {
+        const newClientId = this.clientIdInput.value.trim();
+        if (!newClientId) {
+            this.log('⚠️ Client ID cannot be empty.');
+            return;
+        }
+        // Basic UUID / GUID format validation
+        const guidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (!guidPattern.test(newClientId)) {
+            this.log('⚠️ Invalid Client ID format. Expected a GUID (e.g. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx).');
+            return;
+        }
+        const changed = newClientId !== this.clientId;
+        this.clientId = newClientId;
+        chrome.storage.local.set({ clientId: newClientId }, () => {
+            this.log(`Settings saved. Client ID: ${newClientId}`);
+            if (changed) {
+                this.log('Client ID changed – logging out to apply new settings...');
+                this.handleLogout();
+            }
+        });
+        this.settingsPanel.classList.remove('visible');
     }
 
     /**
@@ -1969,6 +2056,25 @@ class FabricCapacityManager {
             }
         } catch (error) {
             this.debugLog('Failed to update tenant display from token: ' + error.message);
+        }
+    }
+
+    /**
+     * Extract tenant ID from a JWT access token and persist it for future sessions.
+     * This ensures token refresh calls use the user's actual tenant rather than 'common'.
+     */
+    applyTenantIdFromToken(token) {
+        try {
+            const tokenData = this.decodeJwtToken(token);
+            const tid = tokenData?.tid;
+            if (tid && tid !== this.tenantId) {
+                this.tenantId = tid;
+                chrome.storage.local.set({ tenantId: tid }, () => {
+                    this.debugLog(`Tenant ID updated from token: ${tid}`);
+                });
+            }
+        } catch (error) {
+            this.debugLog('applyTenantIdFromToken failed: ' + error.message);
         }
     }
 }

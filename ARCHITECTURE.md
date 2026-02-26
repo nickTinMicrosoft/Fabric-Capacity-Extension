@@ -579,8 +579,9 @@ subscriptionApiVersion: '2022-12-01'
 fabricApiVersion: '2023-11-01'
 
 // OAuth2 Configuration
-clientId: 'b2f9922d-47b3-45de-be16-72911e143fa4'
-tenantId: 'common' // Multi-tenant
+defaultClientId: 'b2f9922d-47b3-45de-be16-72911e143fa4'  // Built-in fallback; overridden by user-configured value in storage
+clientId: <loaded from chrome.storage.local at runtime, falls back to defaultClientId>
+tenantId: 'common' (initial) → user's actual tenant GUID after first login (persisted in storage)
 
 // Scopes
 managementScopes: 'https://management.core.windows.net/user_impersonation offline_access openid profile'

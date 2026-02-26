@@ -303,6 +303,86 @@
             user-select: none;
         }
 
+        .settings-panel {
+            display: none;
+            flex-direction: column;
+            gap: 8px;
+            padding: 12px;
+            background-color: #faf9f8;
+            border: 1px solid #e1dfdd;
+            border-radius: 2px;
+            margin-bottom: 8px;
+        }
+
+        .settings-panel.visible {
+            display: flex;
+        }
+
+        .settings-panel label {
+            font-size: 13px;
+            color: #323130;
+            font-weight: 600;
+        }
+
+        .settings-panel input[type="text"] {
+            width: 100%;
+            padding: 6px 10px;
+            border: 1px solid #8a8886;
+            border-radius: 2px;
+            font-size: 13px;
+            box-sizing: border-box;
+        }
+
+        .settings-panel .settings-help {
+            font-size: 11px;
+            color: #605e5c;
+        }
+
+        .settings-row {
+            display: flex;
+            gap: 8px;
+            align-items: flex-end;
+        }
+
+        .settings-row .settings-field {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .settings-button {
+            padding: 6px 14px;
+            background-color: #0078d4;
+            color: white;
+            border: none;
+            border-radius: 2px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .settings-button:hover:not(:disabled) {
+            background-color: #106ebe;
+        }
+
+        .settings-toggle-button {
+            padding: 4px 8px;
+            background-color: #605e5c;
+            color: white;
+            border: none;
+            border-radius: 2px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background-color 0.2s ease;
+            line-height: 1;
+        }
+
+        .settings-toggle-button:hover {
+            background-color: #484644;
+        }
+
         .loading {
             display: none;
             text-align: center;
@@ -337,14 +417,26 @@
         <div class="header-container">
             <div class="header-row">
                 <h2>Microsoft Fabric</h2>
-                <button id="refreshButton" class="refresh-button-header" title="Refresh capacity list">
-                    ⟳
-                </button>
+                <div style="display:flex;gap:6px;align-items:center;">
+                    <button id="settingsToggleButton" class="settings-toggle-button" title="Extension settings">⚙</button>
+                    <button id="refreshButton" class="refresh-button-header" title="Refresh capacity list">⟳</button>
+                </div>
             </div>
             <div class="header-row">
                 <div class="tenant-info" id="tenantInfo">Not logged in</div>
                 <div class="loading-header" id="loadingIndicator">Loading capacities...</div>
             </div>
+        </div>
+
+        <div id="settingsPanel" class="settings-panel">
+            <div class="settings-row">
+                <div class="settings-field">
+                    <label for="clientIdInput">App Registration Client ID</label>
+                    <input type="text" id="clientIdInput" placeholder="e.g. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off" spellcheck="false">
+                </div>
+                <button id="saveSettingsButton" class="settings-button">Save</button>
+            </div>
+            <div class="settings-help">Enter the Client ID (Application ID) of the Azure AD app registration used for authentication. Changing this requires re-login.</div>
         </div>
         
         <div class="controls-container">
