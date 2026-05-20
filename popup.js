@@ -37,9 +37,9 @@ class FabricCapacityManager {
         // this at runtime via the Settings panel in the extension popup.
         // The tenantId starts as 'common' and is updated to the logged-in
         // user's actual tenant ID after the first successful authentication.
-        this.defaultClientId = 'b2f9922d-47b3-45de-be16-72911e143fa4';
+        this.defaultClientId = 'b75cf7c4-8802-401f-8daa-226d5cb55f78';
         this.clientId = this.defaultClientId;
-        this.tenantId = 'common'; // Updated to user's actual tenant ID after first login
+        this.tenantId = '17ab6ae4-62da-43e0-9140-dddeb0a17bf0';
 
         // Settings UI elements
         this.settingsToggleButton = null;
